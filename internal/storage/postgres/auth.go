@@ -1,13 +1,18 @@
-package user
+package postgres
 
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"github.com/google/uuid"
 	pb "github.com/movie-recommendation-v1/user-service/genproto/userservice"
 	logger "github.com/movie-recommendation-v1/user-service/internal/log"
 	"github.com/spf13/cast"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
+	"strconv"
+	"strings"
+	"time"
 )
 
 type UsersStorage interface {
@@ -112,6 +117,11 @@ func (s *userStorage) RegisterUser(ctx context.Context, req *pb.RegisterUserReq)
 }
 
 func (s *userStorage) ForgotPassword(ctx context.Context, req *pb.ForgotPasswordReq) (*pb.ForgotPasswordRes, error) {
+	//logs, err := logger.NewLogger()
+	//if err != nil {
+	//
+	//	return nil, err
+	//}
 	return nil, nil
 }
 
@@ -135,29 +145,58 @@ func (s *userStorage) GetUserByID(ctx context.Context, req *pb.GetUserByIDReq) (
 }
 
 func (s *userStorage) GetAllUsers(ctx context.Context, req *pb.GetAllUserReq) (*pb.GetAllUserRes, error) {
-	query := `select`
-
-	if req.UserReq.Id != "string" && req.UserReq.Id != "" {
-		query += " id,"
-	}
-
-	if req.UserReq.Email != "string" && req.UserReq.Email != "" {
-		query += " email,"
-	}
-	if req.UserReq.Lastname != "string" && req.UserReq.Lastname != "" {
-		query += " lastname,"
-	}
-	if req.UserReq.Name != "string" && req.UserReq.Name != "" {
-		query += " name,"
-	}
+	query := "SELECT id, name, lastname, email, O_CHAR(created_at, 'DD-MM-YYYY') AS created_at, updated_at FROM users WHERE deleted_at = 0"
 
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(ctx, query)
+
+	args := []interface{}{}
+	argCounter := 1
+
+	if req.UserReq.Id != "string" && req.UserReq.Id != "" {
+		query += " AND id = $" + strconv.Itoa(argCounter)
+		args = append(args, req.UserReq.Id)
+		argCounter++
+	}
+
+	if req.UserReq.Email != "string" && req.UserReq.Email != "" {
+		query += " AND email = $" + strconv.Itoa(argCounter)
+		args = append(args, req.UserReq.Email)
+		argCounter++
+	}
+
+	if req.UserReq.Lastname != "string" && req.UserReq.Lastname != "" {
+		query += " AND lastname = $" + strconv.Itoa(argCounter)
+		args = append(args, req.UserReq.Lastname)
+		argCounter++
+	}
+
+	if req.UserReq.Name != "string" && req.UserReq.Name != "" {
+		query += " AND name = $" + strconv.Itoa(argCounter)
+		args = append(args, req.UserReq.Name)
+		argCounter++
+	}
+
+	if req.UserReq.CreatedAt != "string" && req.UserReq.CreatedAt != "" {
+		t1, err := time.Parse("01-02-2006", req.UserReq.CreatedAt)
+		if err != nil {
+			logs.Error("Error parsing date")
+			return nil, err
+		}
+		createdAtInSeconds := t1.Unix()
+		query += " AND EXTRACT(EPOCH FROM created_at) > $" + strconv.Itoa(argCounter)
+
+		args = append(args, createdAtInSeconds)
+		argCounter++
+	}
+
+	// Query execution
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		logs.Error("Error with get all users")
+		logs.Error("Error with get all users query")
+		return nil, err
 	}
 	var users []*pb.UserModel
 	for rows.Next() {
@@ -174,6 +213,52 @@ func (s *userStorage) GetAllUsers(ctx context.Context, req *pb.GetAllUserReq) (*
 
 }
 func (s *userStorage) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*pb.UpdateUserRes, error) {
-	//query := "update"
-	return nil, nil
+	query := "UPDATE users SET"
+	var args []interface{}
+	var updates []string
+	argCounter := 1
+	logs, err := logger.NewLogger()
+	if err != nil {
+		return nil, err
+	}
+	// Check for fields and build query
+	if req.UserReq.Name != "string" && req.UserReq.Name != "" {
+		updates = append(updates, " name = $"+strconv.Itoa(argCounter))
+		args = append(args, req.UserReq.Name)
+		argCounter++
+	}
+
+	if req.UserReq.Lastname != "string" && req.UserReq.Lastname != "" {
+		updates = append(updates, " lastname = $"+strconv.Itoa(argCounter))
+		args = append(args, req.UserReq.Lastname)
+		argCounter++
+	}
+
+	if req.UserReq.Email != "string" && req.UserReq.Email != "" {
+		updates = append(updates, " email = $"+strconv.Itoa(argCounter))
+		args = append(args, req.UserReq.Email)
+		argCounter++
+	}
+
+	// You can add more fields here...
+
+	// If no fields are provided, return an error
+	if len(updates) == 0 {
+		return nil, errors.New("no fields to update")
+	}
+
+	// Join updates to form the final query
+	query += " " + strings.Join(updates, ", ") + " WHERE id = $" + strconv.Itoa(argCounter)
+	args = append(args, req.UserReq.Id)
+
+	// Execute the query
+	_, err = s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		// Log the error and return
+		logs.Error("Error updating user: ", zap.Error(err))
+		return nil, err
+	}
+
+	// Return success response
+	return &pb.UpdateUserRes{UserRes: req.UserReq}, nil
 }
