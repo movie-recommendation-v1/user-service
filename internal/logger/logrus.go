@@ -12,6 +12,7 @@ func NewLogger() (*zap.Logger, error) {
 		return nil, err
 	}
 
+
 	// Configure the encoder
 	encoderConfig := zapcore.EncoderConfig{
 		TimeKey:        "time",
@@ -36,5 +37,5 @@ func NewLogger() (*zap.Logger, error) {
 
 	// Create logger
 	logger := zap.New(core)
-	return logger, nil
+	return logger, nil 
 }
