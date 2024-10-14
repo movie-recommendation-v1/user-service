@@ -5,10 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	pb "github.com/movie-recommendation-v1/user-service/genproto/userservice"
-	logger "github.com/movie-recommendation-v1/user-service/internal/log"
+	logger "github.com/movie-recommendation-v1/user-service/internal/logger"
 	"go.uber.org/zap"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type AdminStorage interface {
@@ -30,7 +31,7 @@ func NewAdminStorage(db *sql.DB) AdminStorage {
 }
 
 func (s *AdminStorageImpl) CreateAdmin(ctx context.Context, req *pb.CreateAdminReq) (*pb.CreateAdminRes, error) {
-	query := `INSERT INTO admins (name, email, password) VALUES ($1, $2, $3)`
+	query := `INSERT INTO admins (name, email, password, role) VALUES ($1, $2, $3, $4)`
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
@@ -40,7 +41,7 @@ func (s *AdminStorageImpl) CreateAdmin(ctx context.Context, req *pb.CreateAdminR
 	if err != nil {
 		logs.Error("Error hashing password", zap.Error(err))
 	}
-	_, err = s.db.ExecContext(ctx, query, req.AdminName, req.AdminEmail, password)
+	_, err = s.db.ExecContext(ctx, query, req.AdminName, req.AdminEmail, password, "admin")
 	if err != nil {
 		logs.Error("Error creating admin", zap.Error(err))
 	}
@@ -94,7 +95,6 @@ func (s *AdminStorageImpl) UpdateAdmin(ctx context.Context, req *pb.UpdateAdminR
 
 	// Return success response
 	return &pb.UpdateAdminRes{AdminRes: req.AdminReq}, nil
-
 }
 
 func (s *AdminStorageImpl) GetAdmin(ctx context.Context, req *pb.GetAdminReq) (*pb.GetAdminRes, error) {
@@ -121,9 +121,90 @@ func (s *AdminStorageImpl) ForgetPassword(ctx context.Context, req *pb.ForgetPas
 }
 
 func (s *AdminStorageImpl) GetAllAdmins(ctx context.Context, req *pb.GetAllAdminReq) (*pb.GetAllAdminRes, error) {
-	return nil, nil
+	query := "SELECT id, name, lastname, email, O_CHAR(created_at, 'DD-MM-YYYY') AS created_at, updated_at FROM users WHERE deleted_at = 0"
+
+	logs, err := logger.NewLogger()
+	if err != nil {
+		return nil, err
+	}
+
+	args := []interface{}{}
+	argCounter := 1
+
+	if req.AdminReq.Id != "string" && req.AdminReq.Id != "" {
+		query += " AND id = $" + strconv.Itoa(argCounter)
+		args = append(args, req.AdminReq.Id)
+		argCounter++
+	}
+
+	if req.AdminReq.Email != "string" && req.AdminReq.Email != "" {
+		query += " AND email = $" + strconv.Itoa(argCounter)
+		args = append(args, req.AdminReq.Email)
+		argCounter++
+	}
+
+	if req.AdminReq.Lastname != "string" && req.AdminReq.Lastname != "" {
+		query += " AND lastname = $" + strconv.Itoa(argCounter)
+		args = append(args, req.AdminReq.Lastname)
+		argCounter++
+	}
+
+	if req.AdminReq.Name != "string" && req.AdminReq.Name != "" {
+		query += " AND name = $" + strconv.Itoa(argCounter)
+		args = append(args, req.AdminReq.Name)
+		argCounter++
+	}
+
+	if req.AdminReq.CreatedAt != "string" && req.AdminReq.CreatedAt != "" {
+		t1, err := time.Parse("01-02-2006", req.AdminReq.CreatedAt)
+		if err != nil {
+			logs.Error("Error parsing date")
+			return nil, err
+		}
+		createdAtInSeconds := t1.Unix()
+		query += " AND EXTRACT(EPOCH FROM created_at) > $" + strconv.Itoa(argCounter)
+
+		args = append(args, createdAtInSeconds)
+		argCounter++
+	}
+
+	// Query execution
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		logs.Error("Error with get all users query")
+		return nil, err
+	}
+	var admins []*pb.AdminModel
+	for rows.Next() {
+		admin := pb.AdminModel{}
+
+		err = rows.Scan(&admin.Id, &admin.Name, &admin.Lastname, &admin.Email, &admin.CreatedAt, &admin.UpdatedAt)
+		if err != nil {
+			logs.Error("Error with get all users")
+		}
+		admins = append(admins, &admin)
+	}
+
+	resp := pb.GetAllAdminRes{
+		AdminRes: admins,
+	}
+
+	logs.Info("Successfully get all admins")
+	return &resp, nil
 }
 
 func (s *AdminStorageImpl) DeleteAdmin(ctx context.Context, req *pb.DeleteAdminReq) (*pb.DeleteAdminRes, error) {
-	return nil, nil
+	query := `update users set deleted_at = $1 where id = $2`
+	t := time.Now().Unix()
+	logs, err := logger.NewLogger()
+	if err != nil {
+		return nil, err
+	}
+	_, err = s.db.ExecContext(ctx, query,t,req.AdminId)
+	if err != nil {
+		logs.Error("Error while deleting admin")
+	}
+	logs.Info("Successfully deleted admin")
+	return &pb.DeleteAdminRes{Message: "Success"}, nil
+
 }

@@ -209,8 +209,13 @@ func (s *userStorage) GetAllUsers(ctx context.Context, req *pb.GetAllUserReq) (*
 		}
 		users = append(users, &user)
 	}
+
+	resp := pb.GetAllUserRes{
+		UserRes: users,
+	}
+
 	logs.Info("Successfully get all users")
-	return nil, nil
+	return &resp, nil
 
 }
 func (s *userStorage) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*pb.UpdateUserRes, error) {
