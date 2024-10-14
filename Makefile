@@ -1,20 +1,28 @@
 CURRENT_DIR=$(shell pwd)
-DB_URL=postgres://muhammad:1111@localhost:5432/authentication?sslmode=disable
+
+create-mig:
+	migrate create -ext sql -dir ./internal/migration -seq auth-service
+
+mig-insert:
+	migrate create -ext sql -dir migration -seq insert_table
+
 
 proto-gen:
-	./scripts/gen-proto.sh ${CURRENT_DIR}
+	./internal/script/gen-proto.sh ${CURRENT_DIR}
 
-run :
-	go run cmd/main.go
+mig-up:
+	migrate -database 'postgres://postgres:1234@localhost:5432/cinemauserservice?sslmode=disable' -path migration up
 
-migrate_up:
-	migrate -path migrations -database ${DB_URL}  -verbose up
+mig-down:
+	migrate -database 'postgres://postgres:1234@localhost:5432/cinema-user-service?sslmode=disable' -path migration down
 
-migrate_down:
-	migrate -path migrations -database ${DB_URL}  -verbose down
+mig-force:
+	migrate -database 'postgres://postgres:1234@localhost:5432/cinema-user-service?sslmode=disable' -path migration force 1
 
-migrate_force:
-	migrate -path migrations -database ${DB_URL}  -verbose force 1
+SWAGGER := ~/go/bin/swag
+SWAGGER_DOCS := docs
+SWAGGER_INIT := $(SWAGGER) init -g ./api/router.go -o $(SWAGGER_DOCS)
 
-migrate_file:
-	migrate create -ext sql -dir migrations -seq create_tables
+# Target to generate swagger documentation
+swag-gen:
+	$(SWAGGER_INIT)
