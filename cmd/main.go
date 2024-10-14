@@ -32,8 +32,12 @@ func main() {
 	userStorage := postgres.NewUserStorage(db)
 	userService := service.NewUserService(userStorage)
 
+	adminStorage := postgres.NewAdminStorage(db)
+	adminService := service.NewAdminService(adminStorage)
+
 	s := grpc.NewServer()
 	pb.RegisterUserServiceServer(s, userService)
+	pb.RegisterAdminServiceServer(s, adminService)
 
 	if err := s.Serve(listener); err != nil {
 		logs.Error("Error while initializing server")

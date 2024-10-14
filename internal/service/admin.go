@@ -16,18 +16,18 @@ type AdminService interface {
 	GetAllAdmins(ctx context.Context, req *pb.GetAllAdminReq) (*pb.GetAllAdminRes, error)
 	DeleteAdmin(ctx context.Context, req *pb.DeleteAdminReq) (*pb.DeleteAdminRes, error)
 }
-type adminService struct {
+type AdminServiceImpl struct {
 	admin postgres.AdminStorage
 	pb.UnimplementedAdminServiceServer
 }
 
-func NewAdminStorage(admin postgres.AdminStorage) AdminService {
-	return &adminService{
+func NewAdminService(admin AdminService) *AdminServiceImpl {
+	return &AdminServiceImpl{
 		admin: admin,
 	}
 }
 
-func (s *adminService) CreateAdmin(ctx context.Context, req *pb.CreateAdminReq) (*pb.CreateAdminRes, error) {
+func (s *AdminServiceImpl) CreateAdmin(ctx context.Context, req *pb.CreateAdminReq) (*pb.CreateAdminRes, error) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
@@ -40,7 +40,7 @@ func (s *adminService) CreateAdmin(ctx context.Context, req *pb.CreateAdminReq) 
 	return resp, nil
 }
 
-func (s *adminService) UpdateAdmin(ctx context.Context, req *pb.UpdateAdminReq) (*pb.UpdateAdminRes, error) {
+func (s *AdminServiceImpl) UpdateAdmin(ctx context.Context, req *pb.UpdateAdminReq) (*pb.UpdateAdminRes, error) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
@@ -54,7 +54,7 @@ func (s *adminService) UpdateAdmin(ctx context.Context, req *pb.UpdateAdminReq) 
 	return resp, nil
 }
 
-func (s *adminService) GetAdmin(ctx context.Context, req *pb.GetAdminReq) (*pb.GetAdminRes, error) {
+func (s *AdminServiceImpl) GetAdmin(ctx context.Context, req *pb.GetAdminReq) (*pb.GetAdminRes, error) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
@@ -68,11 +68,11 @@ func (s *adminService) GetAdmin(ctx context.Context, req *pb.GetAdminReq) (*pb.G
 	return resp, nil
 }
 
-func (s *adminService) ForgetPassword(ctx context.Context, req *pb.ForgetPasswordReq) (*pb.ForgetPasswordRes, error) {
+func (s *AdminServiceImpl) ForgetPassword(ctx context.Context, req *pb.ForgetPasswordReq) (*pb.ForgetPasswordRes, error) {
 	return nil, nil
 }
 
-func (s *adminService) GetAllAdmins(ctx context.Context, req *pb.GetAllAdminReq) (*pb.GetAllAdminRes, error) {
+func (s *AdminServiceImpl) GetAllAdmins(ctx context.Context, req *pb.GetAllAdminReq) (*pb.GetAllAdminRes, error) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
@@ -86,7 +86,7 @@ func (s *adminService) GetAllAdmins(ctx context.Context, req *pb.GetAllAdminReq)
 	return resp, nil
 }
 
-func (s *adminService) DeleteAdmin(ctx context.Context, req *pb.DeleteAdminReq) (*pb.DeleteAdminRes, error) {
+func (s *AdminServiceImpl) DeleteAdmin(ctx context.Context, req *pb.DeleteAdminReq) (*pb.DeleteAdminRes, error) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
