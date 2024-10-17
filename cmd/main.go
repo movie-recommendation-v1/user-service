@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"net"
 
 	pb "github.com/movie-recommendation-v1/user-service/genproto/userservice"
@@ -9,7 +10,7 @@ import (
 	"github.com/movie-recommendation-v1/user-service/internal/storage/postgres"
 	"google.golang.org/grpc"
 )
-	
+
 func main() {
 
 	logs, err := logger.NewLogger()
@@ -21,13 +22,23 @@ func main() {
 	if err != nil {
 		logs.Error("Error while initializing postgres connection")
 	}
-	defer db.Close()
-	listener, err := net.Listen("tcp", ":5051")
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+
+		}
+	}(db)
+	listener, err := net.Listen("tcp", ":8081")
 	if err != nil {
 		logs.Error("Error while initializing listener")
 	}
-	defer listener.Close()
-	logs.Info("Server start on port 5051")
+	defer func(listener net.Listener) {
+		err := listener.Close()
+		if err != nil {
+
+		}
+	}(listener)
+	logs.Info("Server start on port 8081")
 
 	userStorage := postgres.NewUserStorage(db)
 	userService := service.NewUserService(userStorage)

@@ -136,7 +136,7 @@ func (s *userStorage) GetUserByID(ctx context.Context, req *pb.GetUserByIDReq) (
 
 	user := pb.UserModel{}
 
-	err = s.db.QueryRowContext(ctx, query, req.Userid).Scan(&user.Id, &user.Name, &user.Lastname, &user.Email, &user.CreatedAt, &user.UpdatedAt)
+	err = s.db.QueryRowContext(ctx, query, req.Userid).Scan(&user.Id, &user.Name, &user.Lastname, &user.Email, &user.CreatedAt, &user.UpdatedAt, &user.Role)
 	if err != nil {
 		logs.Error("Error with get user")
 		return nil, err
@@ -203,7 +203,7 @@ func (s *userStorage) GetAllUsers(ctx context.Context, req *pb.GetAllUserReq) (*
 	for rows.Next() {
 		user := pb.UserModel{}
 
-		err = rows.Scan(&user.Id, &user.Name, &user.Lastname, &user.Email, &user.CreatedAt, &user.UpdatedAt)
+		err = rows.Scan(&user.Id, &user.Name, &user.Lastname, &user.Email, &user.CreatedAt,&user.Role,&user.UpdatedAt)
 		if err != nil {
 			logs.Error("Error with get all users")
 		}

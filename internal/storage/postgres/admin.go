@@ -104,7 +104,7 @@ func (s *AdminStorageImpl) GetAdmin(ctx context.Context, req *pb.GetAdminReq) (*
 	}
 	query := `select id, name, lastname, email, created_at, updated_at from users where id = $1`
 	admin := pb.AdminModel{}
-	err = s.db.QueryRowContext(ctx, query, req.AdminId).Scan(&admin.Id, &admin.Name, &admin.Lastname, &admin.Email, &admin.CreatedAt, &admin.UpdatedAt)
+	err = s.db.QueryRowContext(ctx, query, req.AdminId).Scan(&admin.Id, &admin.Name, &admin.Lastname, &admin.Email, &admin.CreatedAt, &admin.UpdatedAt, &admin.Role)
 	if err != nil {
 		logs.Error("Error getting user", zap.Error(err))
 		return nil, err
@@ -178,7 +178,7 @@ func (s *AdminStorageImpl) GetAllAdmins(ctx context.Context, req *pb.GetAllAdmin
 	for rows.Next() {
 		admin := pb.AdminModel{}
 
-		err = rows.Scan(&admin.Id, &admin.Name, &admin.Lastname, &admin.Email, &admin.CreatedAt, &admin.UpdatedAt)
+		err = rows.Scan(&admin.Id, &admin.Name, &admin.Lastname, &admin.Email, &admin.CreatedAt, &admin.UpdatedAt, &admin.Role)
 		if err != nil {
 			logs.Error("Error with get all users")
 		}

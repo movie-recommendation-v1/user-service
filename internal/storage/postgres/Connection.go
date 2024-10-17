@@ -3,6 +3,7 @@ package postgres
 import (
 	"database/sql"
 	"fmt"
+	_ "github.com/lib/pq"
 	"github.com/movie-recommendation-v1/user-service/internal/config"
 	logger "github.com/movie-recommendation-v1/user-service/internal/logger"
 )
