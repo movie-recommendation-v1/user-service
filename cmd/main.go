@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"net"
 
 	pb "github.com/movie-recommendation-v1/user-service/genproto/userservice"
@@ -22,23 +21,13 @@ func main() {
 	if err != nil {
 		logs.Error("Error while initializing postgres connection")
 	}
-	defer func(db *sql.DB) {
-		err := db.Close()
-		if err != nil {
-
-		}
-	}(db)
-	listener, err := net.Listen("tcp", ":8081")
+	defer db.Close()
+	listener, err := net.Listen("tcp", ":5051")
 	if err != nil {
 		logs.Error("Error while initializing listener")
 	}
-	defer func(listener net.Listener) {
-		err := listener.Close()
-		if err != nil {
-
-		}
-	}(listener)
-	logs.Info("Server start on port 8081")
+	defer listener.Close()
+	logs.Info("Server start on port 5051")
 
 	userStorage := postgres.NewUserStorage(db)
 	userService := service.NewUserService(userStorage)

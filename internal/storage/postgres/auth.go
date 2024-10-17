@@ -82,12 +82,18 @@ func (s *userStorage) Login(ctx context.Context, req *pb.LoginReq) (*pb.LoginRes
 
 }
 
+type UserRegister struct {
+	email   string
+	deleted int32
+}
+
 func (s *userStorage) RegisterUser(ctx context.Context, req *pb.RegisterUserReq) (*pb.RegisterUserRes, error) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
 	}
-	query := "insert into users (id,username, email,password) values ($1, $2, $3, $4);"
+
+	query := "insert into users (id,name, email,password) values ($1, $2, $3, $4);"
 	hashpass, err := hashPassword(req.Password)
 	if err != nil {
 		logs.Error("Error with create user")

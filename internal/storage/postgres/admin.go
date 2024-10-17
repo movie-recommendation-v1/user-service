@@ -4,12 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	pb "github.com/movie-recommendation-v1/user-service/genproto/userservice"
-	logger "github.com/movie-recommendation-v1/user-service/internal/logger"
-	"go.uber.org/zap"
 	"strconv"
 	"strings"
 	"time"
+
+	pb "github.com/movie-recommendation-v1/user-service/genproto/userservice"
+	logger "github.com/movie-recommendation-v1/user-service/internal/logger"
+	"go.uber.org/zap"
 )
 
 type AdminStorage interface {
