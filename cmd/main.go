@@ -22,12 +22,12 @@ func main() {
 		logs.Error("Error while initializing postgres connection")
 	}
 	defer db.Close()
-	listener, err := net.Listen("tcp", ":5051")
+	listener, err := net.Listen("tcp", ":8081")
 	if err != nil {
 		logs.Error("Error while initializing listener")
 	}
 	defer listener.Close()
-	logs.Info("Server start on port 5051")
+	logs.Info("Server start on port 8081")
 
 	userStorage := postgres.NewUserStorage(db)
 	userService := service.NewUserService(userStorage)
