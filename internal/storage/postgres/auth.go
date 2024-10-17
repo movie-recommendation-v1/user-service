@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -11,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	pb "github.com/movie-recommendation-v1/user-service/genproto/userservice"
 	logger "github.com/movie-recommendation-v1/user-service/internal/logger"
-	"github.com/spf13/cast"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -45,40 +45,45 @@ func NewUserStorage(db *sql.DB) UsersStorage {
 
 func (s *userStorage) Login(ctx context.Context, req *pb.LoginReq) (*pb.LoginRes, error) {
 	logs, err := logger.NewLogger()
+	query := `
+		SELECT
+			id,
+			name,
+			lastname,
+			email,
+			password,
+			role,
+			created_at,
+			updated_at
+		FROM
+			users
+		WHERE
+			email = $1 AND deleted_at = 0
+	`
+	res := pb.LoginRes{
+		UserRes: &pb.UserModel{},
+	}
+	var password string
+	err = s.db.QueryRow(query, req.Email).Scan(
+		&res.UserRes.Id,
+		&res.UserRes.Name,
+		&res.UserRes.Lastname,
+		&res.UserRes.Email,
+		&password,
+		&res.UserRes.Role,
+		&res.UserRes.CreatedAt,
+		&res.UserRes.UpdatedAt,
+	)
 	if err != nil {
+		logs.Error("Error with scan:", zap.Error(err))
 		return nil, err
 	}
-	query := `select password from users where deleted_at = 0`
-	password := ""
-	err = s.db.QueryRowContext(ctx, query).Scan(&password)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			logs.Error("Error getting data from database")
-		}
-	}
-	id := ""
-	err = s.db.QueryRowContext(ctx, "select id from users where deleted_at = 0").Scan(&id)
-	if err != nil {
-		logs.Error("Error getting data from database")
+	ok := checkPasswordHash(req.Password, password)
+	if !ok {
+		return nil, fmt.Errorf("password not correct")
 	}
 
-	status := checkPasswordHash(req.Password, cast.ToString(password))
-
-	if !status {
-		logs.Error("Incorrect password")
-		return nil, err
-	}
-	userL, err := s.GetUserByID(ctx, &pb.GetUserByIDReq{Userid: id})
-	userM := &pb.UserModel{
-		Id:        userL.UserRes.Id,
-		Name:      userL.UserRes.Name,
-		Lastname:  userL.UserRes.Lastname,
-		Email:     userL.UserRes.Email,
-		CreatedAt: userL.UserRes.CreatedAt,
-		UpdatedAt: userL.UserRes.UpdatedAt,
-	}
-
-	return &pb.LoginRes{UserRes: userM}, err
+	return &pb.LoginRes{UserRes: res.UserRes}, err
 
 }
 
@@ -116,6 +121,7 @@ func (s *userStorage) RegisterUser(ctx context.Context, req *pb.RegisterUserReq)
 		Name:      userL.UserRes.Name,
 		Lastname:  userL.UserRes.Lastname,
 		Email:     userL.UserRes.Email,
+		Role:      userL.UserRes.Role,
 		CreatedAt: userL.UserRes.CreatedAt,
 		UpdatedAt: userL.UserRes.UpdatedAt,
 	}
@@ -138,7 +144,7 @@ func (s *userStorage) GetUserByID(ctx context.Context, req *pb.GetUserByIDReq) (
 		return nil, err
 	}
 
-	query := `select id,name, lastname,email, created_at, updated_at from users where id = $1 and deleted_at = 0`
+	query := `select id,name, lastname,email, role, created_at, updated_at from users where id = $1 and deleted_at = 0`
 
 	user := pb.UserModel{}
 
@@ -209,7 +215,7 @@ func (s *userStorage) GetAllUsers(ctx context.Context, req *pb.GetAllUserReq) (*
 	for rows.Next() {
 		user := pb.UserModel{}
 
-		err = rows.Scan(&user.Id, &user.Name, &user.Lastname, &user.Email, &user.CreatedAt,&user.Role,&user.UpdatedAt)
+		err = rows.Scan(&user.Id, &user.Name, &user.Lastname, &user.Email, &user.CreatedAt, &user.Role, &user.UpdatedAt)
 		if err != nil {
 			logs.Error("Error with get all users")
 		}
