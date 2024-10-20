@@ -120,7 +120,11 @@ func (s *UserRepo) RegisterUser(ctx context.Context, req *pb.RegisterUserReq) (*
 	}
 	fmt.Println("Name: ", user.name)
 	user1, err := json.Marshal(&user)
-	err = s.rd.Set(fmt.Sprint(code), user1, time.Second*60).Err()
+	if err != nil {
+		logs.Error("Error marshaling user data:", zap.Error(err))
+		return nil, err
+	}
+	err = s.rd.Set(fmt.Sprint(code), user1, time.Minute*5).Err() // Increased expiration time to 5 minutes
 	if err != nil {
 		logs.Error("Error with redis set:", zap.Error(err))
 		return nil, err
@@ -133,39 +137,58 @@ func (s *UserRepo) VerifyUser(ctx context.Context, req *pb.VerifyUserReq) (*pb.V
 	if err != nil {
 		return nil, err
 	}
-	user := UserModel{}
+
+	// Check if the verification code exists in Redis
 	user1, err := s.rd.Get(req.SmsCode).Result()
 	if err != nil {
+		if err == redis.Nil {
+			logs.Error("Verification code not found or expired")
+			return nil, errors.New("verification code not found or expired")
+		}
 		logs.Error("Error with redis get:", zap.Error(err))
 		return nil, err
 	}
+
+	var user UserModel
 	err = json.Unmarshal([]byte(user1), &user)
 	if err != nil {
 		logs.Error("Error with redis unmarshal:", zap.Error(err))
 		return nil, err
 	}
-	fmt.Println(user)
-	fmt.Println(user.name)
-	fmt.Println(user1)
-	fmt.Println(user.email)
-	query := "insert into users (id,name, email,password, img_url) values ($1, $2, $3, $4, $5);"
+
+	// Validate user data
+	if user.name == "" || user.email == "" || user.password == "" {
+		logs.Error("Invalid user data")
+		return nil, errors.New("invalid user data")
+	}
+
+	query := "INSERT INTO users (id, name, email, password, img_url) VALUES ($1, $2, $3, $4, $5);"
 	hashpass, err := hashPassword(user.password)
 	if err != nil {
-		logs.Error("Error with create user")
+		logs.Error("Error hashing password")
 		return nil, err
 	}
+
 	id := uuid.NewString()
-	_, err = s.db.Exec(query, id, user.name, user.email, hashpass, "empty")
+	_, err = s.db.ExecContext(ctx, query, id, user.name, user.email, hashpass, "empty")
 	if err != nil {
-		logs.Error("Error with create user")
+		logs.Error("Error creating user")
 		return nil, err
 	}
+
+	// Delete the verification code from Redis after successful user creation
+	err = s.rd.Del(req.SmsCode).Err()
+	if err != nil {
+		logs.Error("Error deleting verification code from Redis")
+		// Not returning here as the user is already created
+	}
+
 	userGet, err := s.GetUserByID(ctx, &pb.GetUserByIDReq{Userid: id})
 	if err != nil {
-		logs.Error("Error with create user")
+		logs.Error("Error getting created user")
 		return nil, err
-
 	}
+
 	userM := &pb.UserModel{
 		Id:        userGet.UserRes.Id,
 		Name:      userGet.UserRes.Name,
