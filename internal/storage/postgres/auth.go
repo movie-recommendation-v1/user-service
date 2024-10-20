@@ -144,6 +144,7 @@ func (s *UserRepo) VerifyUser(ctx context.Context, req *pb.VerifyUserReq) (*pb.V
 		return nil, err
 	}
 	fmt.Println(user)
+	fmt.Println(user.name)
 	fmt.Println(user1)
 	fmt.Println(user.email)
 	query := "insert into users (id,name, email,password, img_url) values ($1, $2, $3, $4, $5);"
