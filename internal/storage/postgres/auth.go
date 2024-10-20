@@ -94,6 +94,7 @@ type UserModel struct {
 
 func (s *UserRepo) RegisterUser(ctx context.Context, req *pb.RegisterUserReq) (*pb.RegisterUserRes, error) {
 	logs, err := logger.NewLogger()
+	println(req.Name)
 	if err != nil {
 		return nil, err
 	}
