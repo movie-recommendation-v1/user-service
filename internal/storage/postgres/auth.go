@@ -117,9 +117,9 @@ func (s *UserRepo) RegisterUser(ctx context.Context, req *pb.RegisterUserReq) (*
 		email:    req.Email,
 		password: req.Password,
 	}
-	fmt.Println(user)
+	fmt.Println("Name: ", user.name)
 	user1, err := json.Marshal(&user)
-	err = s.rd.Set(fmt.Sprint(code), user1, time.Second*30).Err()
+	err = s.rd.Set(fmt.Sprint(code), user1, time.Second*60).Err()
 	if err != nil {
 		logs.Error("Error with redis set:", zap.Error(err))
 		return nil, err
