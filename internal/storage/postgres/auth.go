@@ -9,8 +9,8 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
 	pb "github.com/movie-recommendation-v1/user-service/genproto/userservice"
+	h "github.com/movie-recommendation-v1/user-service/helper"
 	"github.com/movie-recommendation-v1/user-service/internal/config"
-	h "github.com/movie-recommendation-v1/user-service/internal/helper"
 	logger "github.com/movie-recommendation-v1/user-service/internal/logger"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -117,13 +117,14 @@ func (s *UserRepo) RegisterUser(ctx context.Context, req *pb.RegisterUserReq) (*
 		email:    email,
 		password: req.Password,
 	}
+	fmt.Println(user)
 	user1, err := json.Marshal(&user)
 	err = s.rd.Set(fmt.Sprint(code), user1, time.Second*30).Err()
 	if err != nil {
 		logs.Error("Error with redis set:", zap.Error(err))
 		return nil, err
 	}
-	return nil, nil
+	return &pb.RegisterUserRes{Message: "Successfully registered"}, nil
 }
 
 func (s *UserRepo) VerifyUser(ctx context.Context, req *pb.VerifyUserReq) (*pb.VerifyUserRes, error) {
@@ -142,14 +143,14 @@ func (s *UserRepo) VerifyUser(ctx context.Context, req *pb.VerifyUserReq) (*pb.V
 		logs.Error("Error with redis unmarshal:", zap.Error(err))
 		return nil, err
 	}
-	query := "insert into users (id,name, email,password) values ($1, $2, $3, $4);"
+	query := "insert into users (id,name, email,password, img_url) values ($1, $2, $3, $4, $5);"
 	hashpass, err := hashPassword(user.password)
 	if err != nil {
 		logs.Error("Error with create user")
 		return nil, err
 	}
 	id := uuid.NewString()
-	_, err = s.db.Exec(query, id, user.name, user.email, hashpass)
+	_, err = s.db.Exec(query, id, user.name, user.email, hashpass, "empty")
 	if err != nil {
 		logs.Error("Error with create user")
 		return nil, err

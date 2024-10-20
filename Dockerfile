@@ -21,6 +21,8 @@ WORKDIR /app
 
 # Copy the compiled binary from the builder stage
 COPY --from=builder /app/myapp .
+COPY --from=builder /app/helper/format.html /app/helper/format.html
+
 
 # Optionally copy the .env file if it's needed
 COPY --from=builder /app/.env .

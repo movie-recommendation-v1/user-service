@@ -10,6 +10,7 @@ services:
       - global
     depends_on:
       - postgres-db
+      - redis
     dns:
       - 8.8.8.8
       - 8.8.4.4
@@ -46,12 +47,22 @@ services:
       timeout: 10s
       retries: 5
 
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - global
+
 networks:
   global:
     external: true
     name: cinema
     driver: bridge
 
-
 volumes:
   db:
+  redis-data:
