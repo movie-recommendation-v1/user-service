@@ -143,6 +143,7 @@ func (s *UserRepo) VerifyUser(ctx context.Context, req *pb.VerifyUserReq) (*pb.V
 		logs.Error("Error with redis unmarshal:", zap.Error(err))
 		return nil, err
 	}
+	fmt.Println(user.email)
 	query := "insert into users (id,name, email,password, img_url) values ($1, $2, $3, $4, $5);"
 	hashpass, err := hashPassword(user.password)
 	if err != nil {
