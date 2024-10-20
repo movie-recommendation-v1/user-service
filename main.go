@@ -23,7 +23,6 @@ func main() {
 	if err != nil {
 		logs.Error("Error while initializing postgres connection")
 	}
-	defer db.Close()
 
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.AUTHHOST, cfg.AUTHPORT))
 	if err != nil {
@@ -33,16 +32,12 @@ func main() {
 	defer listener.Close()
 	logs.Info(fmt.Sprintf("Server start on port: %d", cfg.AUTHPORT))
 
-	userStorage := postgres.NewUserStorage(db)
-	userService := service.NewUserService(userStorage)
-
-	adminStorage := postgres.NewAdminStorage(db)
-	adminService := service.NewAdminService(adminStorage)
+	userService := service.NewUserService(db)
+	adminService := service.NewAdminService(db)
 
 	s := grpc.NewServer()
 	pb.RegisterUserServiceServer(s, userService)
 	pb.RegisterAdminServiceServer(s, adminService)
-
 	if err := s.Serve(listener); err != nil {
 		logs.Error("Error while initializing server")
 	}

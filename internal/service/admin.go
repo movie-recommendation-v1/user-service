@@ -8,31 +8,23 @@ import (
 	"github.com/movie-recommendation-v1/user-service/internal/storage/postgres"
 )
 
-type AdminService interface {
-	CreateAdmin(ctx context.Context, req *pb.CreateAdminReq) (*pb.CreateAdminRes, error)
-	UpdateAdmin(ctx context.Context, req *pb.UpdateAdminReq) (*pb.UpdateAdminRes, error)
-	GetAdmin(ctx context.Context, req *pb.GetAdminReq) (*pb.GetAdminRes, error)
-	ForgetPassword(ctx context.Context, req *pb.ForgetPasswordReq) (*pb.ForgetPasswordRes, error)
-	GetAllAdmins(ctx context.Context, req *pb.GetAllAdminReq) (*pb.GetAllAdminRes, error)
-	DeleteAdmin(ctx context.Context, req *pb.DeleteAdminReq) (*pb.DeleteAdminRes, error)
-}
-type AdminServiceImpl struct {
-	admin postgres.AdminStorage
+type AdminService struct {
+	storage *postgres.Storage
 	pb.UnimplementedAdminServiceServer
 }
 
-func NewAdminService(admin AdminService) *AdminServiceImpl {
-	return &AdminServiceImpl{
-		admin: admin,
+func NewAdminService(db *postgres.Storage) *AdminService {
+	return &AdminService{
+		storage: db,
 	}
 }
 
-func (s *AdminServiceImpl) CreateAdmin(ctx context.Context, req *pb.CreateAdminReq) (*pb.CreateAdminRes, error) {
+func (s *AdminService) CreateAdmin(ctx context.Context, req *pb.CreateAdminReq) (*pb.CreateAdminRes, error) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
 	}
-	resp , err := s.admin.CreateAdmin(ctx, req)
+	resp, err := s.storage.Admini.CreateAdmin(ctx, req)
 	if err != nil {
 		logs.Error("Error while calling CreateAdmin")
 	}
@@ -40,13 +32,13 @@ func (s *AdminServiceImpl) CreateAdmin(ctx context.Context, req *pb.CreateAdminR
 	return resp, nil
 }
 
-func (s *AdminServiceImpl) UpdateAdmin(ctx context.Context, req *pb.UpdateAdminReq) (*pb.UpdateAdminRes, error) {
+func (s *AdminService) UpdateAdmin(ctx context.Context, req *pb.UpdateAdminReq) (*pb.UpdateAdminRes, error) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := s.admin.UpdateAdmin(ctx, req)
+	resp, err := s.storage.Admini.UpdateAdmin(ctx, req)
 	if err != nil {
 		logs.Error("Error while calling Update Admin")
 	}
@@ -54,13 +46,13 @@ func (s *AdminServiceImpl) UpdateAdmin(ctx context.Context, req *pb.UpdateAdminR
 	return resp, nil
 }
 
-func (s *AdminServiceImpl) GetAdmin(ctx context.Context, req *pb.GetAdminReq) (*pb.GetAdminRes, error) {
+func (s *AdminService) GetAdmin(ctx context.Context, req *pb.GetAdminReq) (*pb.GetAdminRes, error) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
 	}
-	
-	resp , err := s.admin.GetAdmin(ctx,req)
+
+	resp, err := s.storage.Admini.GetAdmin(ctx, req)
 	if err != nil {
 		logs.Error("Error while calling Get Admin")
 	}
@@ -68,17 +60,17 @@ func (s *AdminServiceImpl) GetAdmin(ctx context.Context, req *pb.GetAdminReq) (*
 	return resp, nil
 }
 
-func (s *AdminServiceImpl) ForgetPassword(ctx context.Context, req *pb.ForgetPasswordReq) (*pb.ForgetPasswordRes, error) {
+func (s *AdminService) ForgetPassword(ctx context.Context, req *pb.ForgetPasswordReq) (*pb.ForgetPasswordRes, error) {
 	return nil, nil
 }
 
-func (s *AdminServiceImpl) GetAllAdmins(ctx context.Context, req *pb.GetAllAdminReq) (*pb.GetAllAdminRes, error) {
+func (s *AdminService) GetAllAdmins(ctx context.Context, req *pb.GetAllAdminReq) (*pb.GetAllAdminRes, error) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := s.admin.GetAllAdmins(ctx, req)
+	resp, err := s.storage.Admini.GetAllAdmins(ctx, req)
 	if err != nil {
 		logs.Error("Error while calling GetAllAdmins")
 	}
@@ -86,16 +78,16 @@ func (s *AdminServiceImpl) GetAllAdmins(ctx context.Context, req *pb.GetAllAdmin
 	return resp, nil
 }
 
-func (s *AdminServiceImpl) DeleteAdmin(ctx context.Context, req *pb.DeleteAdminReq) (*pb.DeleteAdminRes, error) {
+func (s *AdminService) DeleteAdmin(ctx context.Context, req *pb.DeleteAdminReq) (*pb.DeleteAdminRes, error) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := s.admin.DeleteAdmin(ctx, req)
+	resp, err := s.storage.Admini.DeleteAdmin(ctx, req)
 	if err != nil {
 		logs.Error("Error while deleting admin")
 	}
 	logs.Info("Successfully delete admin")
-	return resp,nil
+	return resp, nil
 }

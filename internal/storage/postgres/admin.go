@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/go-redis/redis"
 	"strconv"
 	"strings"
 	"time"
@@ -13,25 +14,19 @@ import (
 	"go.uber.org/zap"
 )
 
-type AdminStorage interface {
-	CreateAdmin(ctx context.Context, req *pb.CreateAdminReq) (*pb.CreateAdminRes, error)
-	UpdateAdmin(ctx context.Context, req *pb.UpdateAdminReq) (*pb.UpdateAdminRes, error)
-	GetAdmin(ctx context.Context, req *pb.GetAdminReq) (*pb.GetAdminRes, error)
-	ForgetPassword(ctx context.Context, req *pb.ForgetPasswordReq) (*pb.ForgetPasswordRes, error)
-	GetAllAdmins(ctx context.Context, req *pb.GetAllAdminReq) (*pb.GetAllAdminRes, error)
-	DeleteAdmin(ctx context.Context, req *pb.DeleteAdminReq) (*pb.DeleteAdminRes, error)
-}
-type AdminStorageImpl struct {
+type AdminRepo struct {
 	db *sql.DB
+	rd *redis.Client
 }
 
-func NewAdminStorage(db *sql.DB) AdminStorage {
-	return &AdminStorageImpl{
+func NewAdminRepo(db *sql.DB, rd *redis.Client) *AdminRepo {
+	return &AdminRepo{
 		db: db,
+		rd: rd,
 	}
 }
 
-func (s *AdminStorageImpl) CreateAdmin(ctx context.Context, req *pb.CreateAdminReq) (*pb.CreateAdminRes, error) {
+func (s *AdminRepo) CreateAdmin(ctx context.Context, req *pb.CreateAdminReq) (*pb.CreateAdminRes, error) {
 	query := `INSERT INTO admins (name, email, password, role) VALUES ($1, $2, $3, $4)`
 	logs, err := logger.NewLogger()
 	if err != nil {
@@ -50,7 +45,7 @@ func (s *AdminStorageImpl) CreateAdmin(ctx context.Context, req *pb.CreateAdminR
 	return &pb.CreateAdminRes{Message: "Successfully create admin"}, nil
 }
 
-func (s *AdminStorageImpl) UpdateAdmin(ctx context.Context, req *pb.UpdateAdminReq) (*pb.UpdateAdminRes, error) {
+func (s *AdminRepo) UpdateAdmin(ctx context.Context, req *pb.UpdateAdminReq) (*pb.UpdateAdminRes, error) {
 	query := "UPDATE users SET"
 	var args []interface{}
 	var updates []string
@@ -66,11 +61,11 @@ func (s *AdminStorageImpl) UpdateAdmin(ctx context.Context, req *pb.UpdateAdminR
 		argCounter++
 	}
 
-	if req.AdminReq.Lastname != "string" && req.AdminReq.Lastname != "" {
-		updates = append(updates, " lastname = $"+strconv.Itoa(argCounter))
-		args = append(args, req.AdminReq.Lastname)
-		argCounter++
-	}
+	//if req.AdminReq.Lastname != "string" && req.AdminReq.Lastname != "" {
+	//	updates = append(updates, " lastname = $"+strconv.Itoa(argCounter))
+	//	args = append(args, req.AdminReq.Lastname)
+	//	argCounter++
+	//}
 
 	if req.AdminReq.Email != "string" && req.AdminReq.Email != "" {
 		updates = append(updates, " email = $"+strconv.Itoa(argCounter))
@@ -98,14 +93,14 @@ func (s *AdminStorageImpl) UpdateAdmin(ctx context.Context, req *pb.UpdateAdminR
 	return &pb.UpdateAdminRes{AdminRes: req.AdminReq}, nil
 }
 
-func (s *AdminStorageImpl) GetAdmin(ctx context.Context, req *pb.GetAdminReq) (*pb.GetAdminRes, error) {
+func (s *AdminRepo) GetAdmin(ctx context.Context, req *pb.GetAdminReq) (*pb.GetAdminRes, error) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
 	}
 	query := `select id, name, lastname, email, created_at, updated_at from users where id = $1`
 	admin := pb.AdminModel{}
-	err = s.db.QueryRowContext(ctx, query, req.AdminId).Scan(&admin.Id, &admin.Name, &admin.Lastname, &admin.Email, &admin.CreatedAt, &admin.UpdatedAt, &admin.Role)
+	err = s.db.QueryRowContext(ctx, query, req.AdminId).Scan(&admin.Id, &admin.Name, &admin.Email, &admin.CreatedAt, &admin.UpdatedAt, &admin.Role)
 	if err != nil {
 		logs.Error("Error getting user", zap.Error(err))
 		return nil, err
@@ -117,11 +112,11 @@ func (s *AdminStorageImpl) GetAdmin(ctx context.Context, req *pb.GetAdminReq) (*
 	return &resp, nil
 }
 
-func (s *AdminStorageImpl) ForgetPassword(ctx context.Context, req *pb.ForgetPasswordReq) (*pb.ForgetPasswordRes, error) {
+func (s *AdminRepo) ForgetPassword(ctx context.Context, req *pb.ForgetPasswordReq) (*pb.ForgetPasswordRes, error) {
 	return nil, nil
 }
 
-func (s *AdminStorageImpl) GetAllAdmins(ctx context.Context, req *pb.GetAllAdminReq) (*pb.GetAllAdminRes, error) {
+func (s *AdminRepo) GetAllAdmins(ctx context.Context, req *pb.GetAllAdminReq) (*pb.GetAllAdminRes, error) {
 	query := "SELECT id, name, lastname, email, O_CHAR(created_at, 'DD-MM-YYYY') AS created_at, updated_at FROM users WHERE deleted_at = 0"
 
 	logs, err := logger.NewLogger()
@@ -143,12 +138,12 @@ func (s *AdminStorageImpl) GetAllAdmins(ctx context.Context, req *pb.GetAllAdmin
 		args = append(args, req.AdminReq.Email)
 		argCounter++
 	}
-
-	if req.AdminReq.Lastname != "string" && req.AdminReq.Lastname != "" {
-		query += " AND lastname = $" + strconv.Itoa(argCounter)
-		args = append(args, req.AdminReq.Lastname)
-		argCounter++
-	}
+	//
+	//if req.AdminReq.Lastname != "string" && req.AdminReq.Lastname != "" {
+	//	query += " AND lastname = $" + strconv.Itoa(argCounter)
+	//	args = append(args, req.AdminReq.Lastname)
+	//	argCounter++
+	//}
 
 	if req.AdminReq.Name != "string" && req.AdminReq.Name != "" {
 		query += " AND name = $" + strconv.Itoa(argCounter)
@@ -179,7 +174,7 @@ func (s *AdminStorageImpl) GetAllAdmins(ctx context.Context, req *pb.GetAllAdmin
 	for rows.Next() {
 		admin := pb.AdminModel{}
 
-		err = rows.Scan(&admin.Id, &admin.Name, &admin.Lastname, &admin.Email, &admin.CreatedAt, &admin.UpdatedAt, &admin.Role)
+		err = rows.Scan(&admin.Id, &admin.Name, &admin.Email, &admin.CreatedAt, &admin.UpdatedAt, &admin.Role)
 		if err != nil {
 			logs.Error("Error with get all users")
 		}
@@ -194,14 +189,14 @@ func (s *AdminStorageImpl) GetAllAdmins(ctx context.Context, req *pb.GetAllAdmin
 	return &resp, nil
 }
 
-func (s *AdminStorageImpl) DeleteAdmin(ctx context.Context, req *pb.DeleteAdminReq) (*pb.DeleteAdminRes, error) {
-	query := `update users set deleted_at = $1 where id = $2`
+func (s *AdminRepo) DeleteAdmin(ctx context.Context, req *pb.DeleteAdminReq) (*pb.DeleteAdminRes, error) {
+	query := "update users set deleted_at = $1 where id = $2"
 	t := time.Now().Unix()
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
 	}
-	_, err = s.db.ExecContext(ctx, query,t,req.AdminId)
+	_, err = s.db.ExecContext(ctx, query, t, req.AdminId)
 	if err != nil {
 		logs.Error("Error while deleting admin")
 	}

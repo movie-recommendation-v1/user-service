@@ -3,27 +3,23 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
-	"time"
-
+	"github.com/go-redis/redis"
 	"github.com/google/uuid"
 	pb "github.com/movie-recommendation-v1/user-service/genproto/userservice"
+	"github.com/movie-recommendation-v1/user-service/internal/config"
+	h "github.com/movie-recommendation-v1/user-service/internal/helper"
 	logger "github.com/movie-recommendation-v1/user-service/internal/logger"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
+	"math/rand"
+	_ "math/rand"
+	"strconv"
+	"strings"
+	"time"
 )
-
-type UsersStorage interface {
-	Login(ctx context.Context, req *pb.LoginReq) (*pb.LoginRes, error)
-	RegisterUser(ctx context.Context, req *pb.RegisterUserReq) (*pb.RegisterUserRes, error)
-	ForgotPassword(ctx context.Context, req *pb.ForgotPasswordReq) (*pb.ForgotPasswordRes, error)
-	GetUserByID(ctx context.Context, req *pb.GetUserByIDReq) (*pb.GetUserByIDRes, error)
-	GetAllUsers(ctx context.Context, req *pb.GetAllUserReq) (*pb.GetAllUserRes, error)
-	UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*pb.UpdateUserRes, error)
-}
 
 func hashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -35,22 +31,26 @@ func checkPasswordHash(password, hash string) bool {
 	return err == nil
 }
 
-type userStorage struct {
+type UserRepo struct {
 	db *sql.DB
+	rd *redis.Client
 }
 
-func NewUserStorage(db *sql.DB) UsersStorage {
-	return &userStorage{db: db}
+func NewUserRepo(db *sql.DB, rd *redis.Client) *UserRepo {
+	return &UserRepo{
+		db: db,
+		rd: rd,
+	}
 }
 
-func (s *userStorage) Login(ctx context.Context, req *pb.LoginReq) (*pb.LoginRes, error) {
+func (s *UserRepo) Login(ctx context.Context, req *pb.LoginReq) (*pb.LoginRes, error) {
 	logs, err := logger.NewLogger()
 	query := `
 		SELECT
 			id,
 			name,
-			lastname,
 			email,
+			img_url,
 			password,
 			role,
 			created_at,
@@ -67,7 +67,6 @@ func (s *userStorage) Login(ctx context.Context, req *pb.LoginReq) (*pb.LoginRes
 	err = s.db.QueryRow(query, req.Email).Scan(
 		&res.UserRes.Id,
 		&res.UserRes.Name,
-		&res.UserRes.Lastname,
 		&res.UserRes.Email,
 		&password,
 		&res.UserRes.Role,
@@ -87,49 +86,131 @@ func (s *userStorage) Login(ctx context.Context, req *pb.LoginReq) (*pb.LoginRes
 
 }
 
-type UserRegister struct {
-	email   string
-	deleted int32
+type UserModel struct {
+	name     string
+	email    string
+	password string
 }
 
-func (s *userStorage) RegisterUser(ctx context.Context, req *pb.RegisterUserReq) (*pb.RegisterUserRes, error) {
+func (s *UserRepo) RegisterUser(ctx context.Context, req *pb.RegisterUserReq) (*pb.RegisterUserRes, error) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
 	}
+	code := rand.Intn(899999) + 100000
+	cfg := config.Load()
+	email := cfg.EMAIL
+	email_key := cfg.EMAILSECREDKEY
+	err = h.SendVerificationCode(h.Params{
+		From:     email,
+		Password: email_key,
+		To:       req.Email,
+		Message:  fmt.Sprintf("Hi %s, your verification code is %d", req.Name, code),
+		Code:     fmt.Sprint(code),
+	})
+	if err != nil {
+		logs.Error("Error with send email wrong email type:", zap.Error(err))
+		return nil, err
+	}
+	user := UserModel{
+		name:     req.Name,
+		email:    email,
+		password: req.Password,
+	}
+	user1, err := json.Marshal(&user)
+	err = s.rd.Set(fmt.Sprint(code), user1, time.Second*30).Err()
+	if err != nil {
+		logs.Error("Error with redis set:", zap.Error(err))
+		return nil, err
+	}
+	return nil, nil
+}
 
+func (s *UserRepo) VerifyUser(ctx context.Context, req *pb.VerifyUserReq) (*pb.VerifyUserRes, error) {
+	logs, err := logger.NewLogger()
+	if err != nil {
+		return nil, err
+	}
+	user := UserModel{}
+	user1, err := s.rd.Get(req.SmsCode).Result()
+	if err != nil {
+		logs.Error("Error with redis get:", zap.Error(err))
+		return nil, err
+	}
+	err = json.Unmarshal([]byte(user1), &user)
+	if err != nil {
+		logs.Error("Error with redis unmarshal:", zap.Error(err))
+		return nil, err
+	}
 	query := "insert into users (id,name, email,password) values ($1, $2, $3, $4);"
-	hashpass, err := hashPassword(req.Password)
+	hashpass, err := hashPassword(user.password)
 	if err != nil {
 		logs.Error("Error with create user")
 		return nil, err
 	}
 	id := uuid.NewString()
-	_, err = s.db.Exec(query, id, req.Name, req.Email, hashpass)
+	_, err = s.db.Exec(query, id, user.name, user.email, hashpass)
 	if err != nil {
 		logs.Error("Error with create user")
 		return nil, err
 	}
-	userL, err := s.GetUserByID(ctx, &pb.GetUserByIDReq{Userid: id})
+	userGet, err := s.GetUserByID(ctx, &pb.GetUserByIDReq{Userid: id})
 	if err != nil {
 		logs.Error("Error with create user")
 		return nil, err
 
 	}
 	userM := &pb.UserModel{
-		Id:        userL.UserRes.Id,
-		Name:      userL.UserRes.Name,
-		Lastname:  userL.UserRes.Lastname,
-		Email:     userL.UserRes.Email,
-		Role:      userL.UserRes.Role,
-		CreatedAt: userL.UserRes.CreatedAt,
-		UpdatedAt: userL.UserRes.UpdatedAt,
+		Id:        userGet.UserRes.Id,
+		Name:      userGet.UserRes.Name,
+		Email:     userGet.UserRes.Email,
+		Role:      userGet.UserRes.Role,
+		CreatedAt: userGet.UserRes.CreatedAt,
+		UpdatedAt: userGet.UserRes.UpdatedAt,
 	}
 
-	return &pb.RegisterUserRes{UserRes: userM}, nil
+	return &pb.VerifyUserRes{
+		Res: userM,
+	}, nil
 }
 
-func (s *userStorage) ForgotPassword(ctx context.Context, req *pb.ForgotPasswordReq) (*pb.ForgotPasswordRes, error) {
+//func (s *UserRepo) RegisterUser(ctx context.Context, req *pb.RegisterUserReq) (*pb.RegisterUserRes, error) {
+//	logs, err := logger.NewLogger()
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	query := "insert into users (id,name, email,password) values ($1, $2, $3, $4);"
+//	hashpass, err := hashPassword(req.Password)
+//	if err != nil {
+//		logs.Error("Error with create user")
+//		return nil, err
+//	}
+//	id := uuid.NewString()
+//	_, err = s.db.Exec(query, id, req.Name, req.Email, hashpass)
+//	if err != nil {
+//		logs.Error("Error with create user")
+//		return nil, err
+//	}
+//	userL, err := s.GetUserByID(ctx, &pb.GetUserByIDReq{Userid: id})
+//	if err != nil {
+//		logs.Error("Error with create user")
+//		return nil, err
+//
+//	}
+//	userM := &pb.UserModel{
+//		Id:        userL.UserRes.Id,
+//		Name:      userL.UserRes.Name,
+//		Email:     userL.UserRes.Email,
+//		Role:      userL.UserRes.Role,
+//		CreatedAt: userL.UserRes.CreatedAt,
+//		UpdatedAt: userL.UserRes.UpdatedAt,
+//	}
+//
+//	return &pb.RegisterUserRes{UserRes: userM}, nil
+//}
+
+func (s *UserRepo) ForgotPassword(ctx context.Context, req *pb.ForgotPasswordReq) (*pb.ForgotPasswordRes, error) {
 	//logs, err := logger.NewLogger()
 	//if err != nil {
 	//
@@ -138,17 +219,17 @@ func (s *userStorage) ForgotPassword(ctx context.Context, req *pb.ForgotPassword
 	return nil, nil
 }
 
-func (s *userStorage) GetUserByID(ctx context.Context, req *pb.GetUserByIDReq) (*pb.GetUserByIDRes, error) {
+func (s *UserRepo) GetUserByID(ctx context.Context, req *pb.GetUserByIDReq) (*pb.GetUserByIDRes, error) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
 	}
 
-	query := `select id,name, lastname,email, role, created_at, updated_at from users where id = $1 and deleted_at = 0`
+	query := `select id,name,email, role, created_at, updated_at from users where id = $1 and deleted_at = 0`
 
 	user := pb.UserModel{}
 
-	err = s.db.QueryRowContext(ctx, query, req.Userid).Scan(&user.Id, &user.Name, &user.Lastname, &user.Email, &user.CreatedAt, &user.UpdatedAt, &user.Role)
+	err = s.db.QueryRowContext(ctx, query, req.Userid).Scan(&user.Id, &user.Name, &user.Email, &user.CreatedAt, &user.UpdatedAt, &user.Role)
 	if err != nil {
 		logs.Error("Error with get user")
 		return nil, err
@@ -157,8 +238,8 @@ func (s *userStorage) GetUserByID(ctx context.Context, req *pb.GetUserByIDReq) (
 
 }
 
-func (s *userStorage) GetAllUsers(ctx context.Context, req *pb.GetAllUserReq) (*pb.GetAllUserRes, error) {
-	query := "SELECT id, name, lastname, email, O_CHAR(created_at, 'DD-MM-YYYY') AS created_at, updated_at FROM users WHERE deleted_at = 0"
+func (s *UserRepo) GetAllUsers(ctx context.Context, req *pb.GetAllUserReq) (*pb.GetAllUserRes, error) {
+	query := "SELECT id, name, email, O_CHAR(created_at, 'DD-MM-YYYY') AS created_at, updated_at FROM users WHERE deleted_at = 0"
 
 	logs, err := logger.NewLogger()
 	if err != nil {
@@ -180,11 +261,11 @@ func (s *userStorage) GetAllUsers(ctx context.Context, req *pb.GetAllUserReq) (*
 		argCounter++
 	}
 
-	if req.UserReq.Lastname != "string" && req.UserReq.Lastname != "" {
-		query += " AND lastname = $" + strconv.Itoa(argCounter)
-		args = append(args, req.UserReq.Lastname)
-		argCounter++
-	}
+	//if req.UserReq.Lastname != "string" && req.UserReq.Lastname != "" {
+	//	query += " AND lastname = $" + strconv.Itoa(argCounter)
+	//	args = append(args, req.UserReq.Lastname)
+	//	argCounter++
+	//}
 
 	if req.UserReq.Name != "string" && req.UserReq.Name != "" {
 		query += " AND name = $" + strconv.Itoa(argCounter)
@@ -215,7 +296,7 @@ func (s *userStorage) GetAllUsers(ctx context.Context, req *pb.GetAllUserReq) (*
 	for rows.Next() {
 		user := pb.UserModel{}
 
-		err = rows.Scan(&user.Id, &user.Name, &user.Lastname, &user.Email, &user.CreatedAt, &user.Role, &user.UpdatedAt)
+		err = rows.Scan(&user.Id, &user.Name, &user.Email, &user.CreatedAt, &user.Role, &user.UpdatedAt)
 		if err != nil {
 			logs.Error("Error with get all users")
 		}
@@ -230,7 +311,7 @@ func (s *userStorage) GetAllUsers(ctx context.Context, req *pb.GetAllUserReq) (*
 	return &resp, nil
 
 }
-func (s *userStorage) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*pb.UpdateUserRes, error) {
+func (s *UserRepo) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*pb.UpdateUserRes, error) {
 	query := "UPDATE users SET"
 	var args []interface{}
 	var updates []string
@@ -246,11 +327,11 @@ func (s *userStorage) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*p
 		argCounter++
 	}
 
-	if req.UserReq.Lastname != "string" && req.UserReq.Lastname != "" {
-		updates = append(updates, " lastname = $"+strconv.Itoa(argCounter))
-		args = append(args, req.UserReq.Lastname)
-		argCounter++
-	}
+	//if req.UserReq.Lastname != "string" && req.UserReq.Lastname != "" {
+	//	updates = append(updates, " lastname = $"+strconv.Itoa(argCounter))
+	//	args = append(args, req.UserReq.Lastname)
+	//	argCounter++
+	//}
 
 	if req.UserReq.Email != "string" && req.UserReq.Email != "" {
 		updates = append(updates, " email = $"+strconv.Itoa(argCounter))
