@@ -114,7 +114,7 @@ func (s *UserRepo) RegisterUser(ctx context.Context, req *pb.RegisterUserReq) (*
 	}
 	user := UserModel{
 		name:     req.Name,
-		email:    email,
+		email:    req.Email,
 		password: req.Password,
 	}
 	fmt.Println(user)
@@ -143,6 +143,8 @@ func (s *UserRepo) VerifyUser(ctx context.Context, req *pb.VerifyUserReq) (*pb.V
 		logs.Error("Error with redis unmarshal:", zap.Error(err))
 		return nil, err
 	}
+	fmt.Println(user)
+	fmt.Println(user1)
 	fmt.Println(user.email)
 	query := "insert into users (id,name, email,password, img_url) values ($1, $2, $3, $4, $5);"
 	hashpass, err := hashPassword(user.password)
