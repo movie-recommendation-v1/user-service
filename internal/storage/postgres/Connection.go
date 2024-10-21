@@ -37,7 +37,7 @@ func ConnectPostgres() (*Storage, error) {
 	logs.Info("Successfully connected to postgres")
 
 	rd := redis.NewClient(&redis.Options{
-		Addr: "redis:6379",
+		Addr: fmt.Sprintf("%s:%d", conf.REDISHOST, conf.REDISPORT),
 	})
 	admin := NewAdminRepo(db, rd)
 	user := NewUserRepo(db, rd)

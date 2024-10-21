@@ -87,9 +87,9 @@ func (s *UserRepo) Login(ctx context.Context, req *pb.LoginReq) (*pb.LoginRes, e
 }
 
 type UserModel struct {
-	name     string
-	email    string
-	password string
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 func (s *UserRepo) RegisterUser(ctx context.Context, req *pb.RegisterUserReq) (*pb.RegisterUserRes, error) {
@@ -113,12 +113,12 @@ func (s *UserRepo) RegisterUser(ctx context.Context, req *pb.RegisterUserReq) (*
 		logs.Error("Error with send email wrong email type:", zap.Error(err))
 		return nil, err
 	}
-	user := UserModel{
-		name:     req.Name,
-		email:    req.Email,
-		password: req.Password,
+	user := &UserModel{
+		Name:     req.Name,
+		Email:    req.Email,
+		Password: req.Password,
 	}
-	fmt.Println("Name: ", user.name)
+	fmt.Println("Name: ", user.Name)
 	user1, err := json.Marshal(&user)
 	if err != nil {
 		logs.Error("Error marshaling user data:", zap.Error(err))
@@ -138,7 +138,6 @@ func (s *UserRepo) VerifyUser(ctx context.Context, req *pb.VerifyUserReq) (*pb.V
 		return nil, err
 	}
 
-	// Check if the verification code exists in Redis
 	user1, err := s.rd.Get(req.SmsCode).Result()
 	if err != nil {
 		if err == redis.Nil {
@@ -156,31 +155,28 @@ func (s *UserRepo) VerifyUser(ctx context.Context, req *pb.VerifyUserReq) (*pb.V
 		return nil, err
 	}
 
-	// Validate user data
-	if user.name == "" || user.email == "" || user.password == "" {
+	if user.Name == "" || user.Email == "" || user.Password == "" {
 		logs.Error("Invalid user data")
 		return nil, errors.New("invalid user data")
 	}
 
 	query := "INSERT INTO users (id, name, email, password, img_url) VALUES ($1, $2, $3, $4, $5);"
-	hashpass, err := hashPassword(user.password)
+	hashpass, err := hashPassword(user.Password)
 	if err != nil {
 		logs.Error("Error hashing password")
 		return nil, err
 	}
 
 	id := uuid.NewString()
-	_, err = s.db.ExecContext(ctx, query, id, user.name, user.email, hashpass, "empty")
+	_, err = s.db.ExecContext(ctx, query, id, user.Name, user.Email, hashpass, "empty")
 	if err != nil {
 		logs.Error("Error creating user")
 		return nil, err
 	}
 
-	// Delete the verification code from Redis after successful user creation
 	err = s.rd.Del(req.SmsCode).Err()
 	if err != nil {
 		logs.Error("Error deleting verification code from Redis")
-		// Not returning here as the user is already created
 	}
 
 	userGet, err := s.GetUserByID(ctx, &pb.GetUserByIDReq{Userid: id})
