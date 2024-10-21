@@ -68,6 +68,7 @@ func (s *UserRepo) Login(ctx context.Context, req *pb.LoginReq) (*pb.LoginRes, e
 		&res.UserRes.Id,
 		&res.UserRes.Name,
 		&res.UserRes.Email,
+		&res.UserRes.ImgUrl,
 		&password,
 		&res.UserRes.Role,
 		&res.UserRes.CreatedAt,
