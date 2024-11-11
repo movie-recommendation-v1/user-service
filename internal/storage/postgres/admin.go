@@ -48,6 +48,7 @@ func (s *AdminRepo) CreateAdmin(ctx context.Context, req *pb.CreateAdminReq) (*p
 func (s *AdminRepo) UpdateAdmin(ctx context.Context, req *pb.UpdateAdminReq) (*pb.UpdateAdminRes, error) {
 	query := "UPDATE users SET"
 	var args []interface{}
+
 	var updates []string
 	argCounter := 1
 	logs, err := logger.NewLogger()

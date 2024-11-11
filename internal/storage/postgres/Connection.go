@@ -28,10 +28,10 @@ func ConnectPostgres() (*Storage, error) {
 		conf.DBHOST, conf.DBPORT, conf.DBUSER, conf.DBPASSWORD, conf.DBNAME)
 	db, err := sql.Open("postgres", dns)
 	if err != nil {
-		logs.Error("Error while connecting postgres")
+		logs.Error("Error while connecting postgres") //hjhghjghjsdf,gjhsdjkfhgjksdkgsk
 	}
 	//err = db.Ping()
-	//if err != nil {
+	//if err != nil { .
 	//	logs.Error("Error while pinging postgres")
 	//}
 	logs.Info("Successfully connected to postgres")

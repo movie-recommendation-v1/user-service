@@ -83,7 +83,7 @@ func (s *UserService) GetUserByID(ctx context.Context, req *pb.GetUserByIDReq) (
 	logs.Info("Successfully get the user")
 	return resp, nil
 }
-func (s *UserService) GetAllUsers(ctx context.Context, req *pb.GetAllUserReq) (*pb.GetAllUserRes, error) {
+func (s *UserService) GetAllUser(ctx context.Context, req *pb.GetAllUserReq) (*pb.GetAllUserRes, error) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err

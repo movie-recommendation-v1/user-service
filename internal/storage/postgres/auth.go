@@ -253,7 +253,7 @@ func (s *UserRepo) GetUserByID(ctx context.Context, req *pb.GetUserByIDReq) (*pb
 
 	query := `select id,name,email, role, created_at, updated_at from users where id = $1 and deleted_at = 0`
 
-	user := pb.UserModel{}
+	user := pb.UserModel{} //skdhgfhkjsdhkfjsd
 
 	err = s.db.QueryRowContext(ctx, query, req.Userid).Scan(&user.Id, &user.Name, &user.Email, &user.CreatedAt, &user.UpdatedAt, &user.Role)
 	if err != nil {
@@ -265,8 +265,7 @@ func (s *UserRepo) GetUserByID(ctx context.Context, req *pb.GetUserByIDReq) (*pb
 }
 
 func (s *UserRepo) GetAllUsers(ctx context.Context, req *pb.GetAllUserReq) (*pb.GetAllUserRes, error) {
-	query := "SELECT id, name, email, O_CHAR(created_at, 'DD-MM-YYYY') AS created_at, updated_at FROM users WHERE deleted_at = 0"
-
+	query := "SELECT id, name, email, TO_CHAR(created_at, 'DD-MM-YYYY') AS created_at, updated_at FROM users WHERE deleted_at = 0"
 	logs, err := logger.NewLogger()
 	if err != nil {
 		return nil, err
@@ -280,18 +279,11 @@ func (s *UserRepo) GetAllUsers(ctx context.Context, req *pb.GetAllUserReq) (*pb.
 		args = append(args, req.UserReq.Id)
 		argCounter++
 	}
-
 	if req.UserReq.Email != "string" && req.UserReq.Email != "" {
 		query += " AND email = $" + strconv.Itoa(argCounter)
 		args = append(args, req.UserReq.Email)
 		argCounter++
 	}
-
-	//if req.UserReq.Lastname != "string" && req.UserReq.Lastname != "" {
-	//	query += " AND lastname = $" + strconv.Itoa(argCounter)
-	//	args = append(args, req.UserReq.Lastname)
-	//	argCounter++
-	//}
 
 	if req.UserReq.Name != "string" && req.UserReq.Name != "" {
 		query += " AND name = $" + strconv.Itoa(argCounter)
@@ -312,31 +304,26 @@ func (s *UserRepo) GetAllUsers(ctx context.Context, req *pb.GetAllUserReq) (*pb.
 		argCounter++
 	}
 
-	// Query execution
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		logs.Error("Error with get all users query")
 		return nil, err
 	}
+
 	var users []*pb.UserModel
 	for rows.Next() {
-		user := pb.UserModel{}
-
+		user := &pb.UserModel{}
 		err = rows.Scan(&user.Id, &user.Name, &user.Email, &user.CreatedAt, &user.Role, &user.UpdatedAt)
 		if err != nil {
 			logs.Error("Error with get all users")
 		}
-		users = append(users, &user)
-	}
-
-	resp := pb.GetAllUserRes{
-		UserRes: users,
+		users = append(users, user)
 	}
 
 	logs.Info("Successfully get all users")
-	return &resp, nil
-
+	return &pb.GetAllUserRes{UserRes: users}, nil
 }
+
 func (s *UserRepo) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*pb.UpdateUserRes, error) {
 	query := "UPDATE users SET"
 	var args []interface{}
@@ -353,26 +340,16 @@ func (s *UserRepo) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*pb.U
 		argCounter++
 	}
 
-	//if req.UserReq.Lastname != "string" && req.UserReq.Lastname != "" {
-	//	updates = append(updates, " lastname = $"+strconv.Itoa(argCounter))
-	//	args = append(args, req.UserReq.Lastname)
-	//	argCounter++
-	//}
-
 	if req.UserReq.Email != "string" && req.UserReq.Email != "" {
 		updates = append(updates, " email = $"+strconv.Itoa(argCounter))
 		args = append(args, req.UserReq.Email)
 		argCounter++
 	}
 
-	// You can add more fields here...
-
-	// If no fields are provided, return an error
 	if len(updates) == 0 {
 		return nil, errors.New("no fields to update")
 	}
 
-	// Join updates to form the final query
 	query += " " + strings.Join(updates, ", ") + " WHERE id = $" + strconv.Itoa(argCounter)
 	args = append(args, req.UserReq.Id)
 
