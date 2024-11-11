@@ -253,7 +253,7 @@ func (s *UserRepo) GetUserByID(ctx context.Context, req *pb.GetUserByIDReq) (*pb
 
 	query := `select id,name,email, role, created_at, updated_at from users where id = $1 and deleted_at = 0`
 
-	user := pb.UserModel{} //skdhgfhkjsdhk
+	user := pb.UserModel{} //skdhgfhkjsdh
 
 	err = s.db.QueryRowContext(ctx, query, req.Userid).Scan(&user.Id, &user.Name, &user.Email, &user.CreatedAt, &user.UpdatedAt, &user.Role)
 	if err != nil {
