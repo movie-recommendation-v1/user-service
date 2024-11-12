@@ -203,7 +203,7 @@ func (s *UserRepo) VerifyUser(ctx context.Context, req *pb.VerifyUserReq) (*pb.V
 //func (s *UserRepo) RegisterUser(ctx context.Context, req *pb.RegisterUserReq) (*pb.RegisterUserRes, error) {
 //	logs, err := logger.NewLogger()
 //	if err != nil {
-//		return nil, err
+//		return nil, err//kjhgjhkj
 //	}
 //
 //	query := "insert into users (id,name, email,password) values ($1, $2, $3, $4);"
