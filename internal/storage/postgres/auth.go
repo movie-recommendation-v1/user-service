@@ -300,7 +300,7 @@ func (s *UserRepo) GetAllUsers(ctx context.Context, req *pb.GetAllUserReq) (*pb.
 		createdAtInSeconds := t1.Unix()
 		query += " AND EXTRACT(EPOCH FROM created_at) > $" + strconv.Itoa(argCounter)
 
-		args = append(args, createdAtInSeconds)
+		args = append(args, createdAtInSeconds) //njjknjknj
 		argCounter++
 	}
 
