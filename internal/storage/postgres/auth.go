@@ -361,6 +361,6 @@ func (s *UserRepo) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*pb.U
 		return nil, err
 	}
 
-	// dsk
+	// ds
 	return &pb.UpdateUserRes{UserRes: req.UserReq}, nil
 }
