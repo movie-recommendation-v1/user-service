@@ -31,8 +31,8 @@ func ConnectPostgres() (*Storage, error) {
 		logs.Error("Error while connecting postgres") //hjhghjghjsdf,gjhsdjkfhgjksdkgsk
 	}
 	//err = db.Ping()
-	//if err != nil { .
-	//	logs.Error("Error while pinging postgres")
+	//if err != nil { .kjqwe
+	//	logs.Error("Errolr while pinging postgres")
 	//}
 	logs.Info("Successfully connected to postgres")
 
